@@ -2,8 +2,8 @@
 # encoding: UTF-8
 
 """
-This file is part of Commix Project (http://commixproject.com).
-Copyright (c) 2014-2018 Anastasios Stasinopoulos (@ancst).
+This file is part of Commix Project (https://commixproject.com).
+Copyright (c) 2014-2019 Anastasios Stasinopoulos (@ancst).
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -208,11 +208,11 @@ def executed_command(filename, cmd, output):
     pass
 
 """
-Log files cration notification.
+Fetched data logged to text files.
 """
 def logs_notification(filename):
   # Save command history.
-  info_msg = "The results can be found at '" + os.getcwd() + "/" + filename + "'"
+  info_msg = "Fetched data logged to text files under '" + os.getcwd() + "/" + filename + "'"
   print settings.print_info_msg(info_msg)
 
 """

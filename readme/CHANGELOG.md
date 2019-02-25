@@ -1,4 +1,27 @@
-## Version 2.7 (upcoming)
+## Version 2.8 (upcoming)
+* Revised: Minor bug-fixes and improvements regarding HTTP authentication dictionary-based cracker.
+* Revised: Minor bug-fixes and improvements regarding HTTP authentication (Basic / Digest).
+* Fixed: Minor bug-fix regarding ignoring HTTP Error 401 (Unauthorized) (for `--ignore-401` option).
+* Added: Support for writing crawling results to a temporary file (for eventual further processing with other tools).
+* Added: Support for Windows "Python" on "reverse_tcp" shell option. 
+
+## Version 2.7 (2018-12-18)
+* Fixed: Multiple bug-fixes regarding several reported unhandled exceptions.
+* Revised: The suffixes list has been shortly revised.
+* Updated: With each commix run end users are obligated to agree with the "Legal disclaimer" prelude message.
+* Fixed: Minor improvent regarding local HTTP server (for `--file-upload` option).
+* Added: A list of extensions to exclude from crawling.
+* Revised: Minor improvements regarding crawler.
+* Revised: Minor update of redirection mechanism.
+* Revised: Minor improvement regarding identifying the target web server.
+* Revised: Minor improvement regarding identifying corrupted .pyc file(s).
+* Added: New tamper script "dollaratsigns.py" that adds dollar-sign followed by an at-sign ("$@") between the characters of the generated payloads.
+* Fixed: Bug-fix regarding proxying SSL/TLS requests.
+* Revised: Minor improvement regarding checking for potentially miswritten (illegal '=') short option.
+* Revised: Minor improvement regarding checking for illegal (non-console) quote and comma characters.
+* Revised: Minor improvement regarding merging of tamper script arguments.
+* Revised: Minor improvement regarding ignoring the parameter(s) that carrying anti-CSRF token(s) in all scanning attempts.
+* Updated: Beautiful Soup (third party) module has been updated.
 * Added: New tamper script "xforwardedfor.py" that appends a fake HTTP header 'X-Forwarded-For'.
 * Fixed: Minor bug-fix regarding loading tamper scripts. 
 * Revised: Minor improvement regarding "INJECT_HERE" tag (i.e. declaring injection position) to be case insensitive.

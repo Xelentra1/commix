@@ -2,8 +2,8 @@
 # encoding: UTF-8
 
 """
-This file is part of Commix Project (http://commixproject.com).
-Copyright (c) 2014-2018 Anastasios Stasinopoulos (@ancst).
+This file is part of Commix Project (https://commixproject.com).
+Copyright (c) 2014-2019 Anastasios Stasinopoulos (@ancst).
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -119,17 +119,28 @@ def cmd_exec(http_request_method, cmd, url, vuln_parameter, ip_src):
     values =  {vuln_parameter:payload}
     data = urllib.urlencode(values)
     req = urllib2.Request(url=url, data=data)
-  
-  sys.stdout.write(Fore.GREEN + Style.BRIGHT + "\n")
-  response = urllib2.urlopen(req)
-  time.sleep(3)
-  sys.stdout.write(Style.RESET_ALL)
-  if add_new_line:
-    print "\n"
-    add_new_line = True
-  else:
-    print ""  
-  
+
+  try:
+    sys.stdout.write(Fore.GREEN + Style.BRIGHT + "\n")
+    response = urllib2.urlopen(req)
+    time.sleep(3)
+    sys.stdout.write(Style.RESET_ALL)
+    if add_new_line:
+      print "\n"
+      add_new_line = True
+    else:
+      print ""
+      
+  except urllib2.HTTPError, err_msg:
+    print settings.print_critical_msg(str(err_msg.code))
+    raise SystemExit()
+
+  except urllib2.URLError, err_msg:
+    print settings.print_critical_msg(str(err_msg.args[0]).split("] ")[1] + ".")
+    raise SystemExit()
+
+
+
 def input_cmd(http_request_method, url, vuln_parameter, ip_src, technique):
 
   err_msg = ""

@@ -2,8 +2,8 @@
 # encoding: UTF-8
 
 """
-This file is part of Commix Project (http://commixproject.com).
-Copyright (c) 2014-2018 Anastasios Stasinopoulos (@ancst).
+This file is part of Commix Project (https://commixproject.com).
+Copyright (c) 2014-2019 Anastasios Stasinopoulos (@ancst).
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -29,8 +29,6 @@ from src.utils import settings
 from src.utils import session_handler
 
 from src.thirdparty.colorama import Fore, Back, Style, init
-
-from src.core.shells import reverse_tcp
 
 from src.core.requests import headers
 from src.core.requests import requests

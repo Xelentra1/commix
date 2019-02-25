@@ -2,8 +2,8 @@
 # encoding: UTF-8
 
 """
-This file is part of Commix Project (http://commixproject.com).
-Copyright (c) 2014-2018 Anastasios Stasinopoulos (@ancst).
+This file is part of Commix Project (https://commixproject.com).
+Copyright (c) 2014-2019 Anastasios Stasinopoulos (@ancst).
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -81,9 +81,8 @@ def signal_handler(signal, frame):
   os._exit(0)
 
 def snif(dns_server):
-  success_msg = "Started the sniffer between you" + Style.BRIGHT
-  success_msg += " and the DNS server " + Fore.YELLOW + dns_server
-  success_msg += Style.RESET_ALL + Style.BRIGHT + "."
+  success_msg = "Started the sniffer between you and the DNS server '"
+  success_msg += Style.BRIGHT + Fore.YELLOW + dns_server + Style.RESET_ALL + "'."
   print settings.print_success_msg(success_msg)
   while True:
     sniff(filter="port 53", prn=querysniff, store = 0)
@@ -297,3 +296,5 @@ def dns_exfiltration_handler(url, http_request_method):
 
 if __name__ == "__main__":
   dns_exfiltration_handler(url, http_request_method)
+
+# eof

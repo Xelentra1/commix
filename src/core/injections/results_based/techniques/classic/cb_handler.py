@@ -2,8 +2,8 @@
 # encoding: UTF-8
 
 """
-This file is part of Commix Project (http://commixproject.com).
-Copyright (c) 2014-2018 Anastasios Stasinopoulos (@ancst).
+This file is part of Commix Project (https://commixproject.com).
+Copyright (c) 2014-2019 Anastasios Stasinopoulos (@ancst).
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -73,7 +73,7 @@ The "classic" technique on result-based OS command injection.
 The "classic" injection technique handler.
 """
 def cb_injection_handler(url, timesec, filename, http_request_method):
-  
+  shell = False
   counter = 1
   vp_flag = True
   no_result = True

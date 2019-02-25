@@ -2,8 +2,8 @@
 # encoding: UTF-8
 
 """
-This file is part of Commix Project (http://commixproject.com).
-Copyright (c) 2014-2018 Anastasios Stasinopoulos (@ancst).
+This file is part of Commix Project (https://commixproject.com).
+Copyright (c) 2014-2019 Anastasios Stasinopoulos (@ancst).
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -14,23 +14,23 @@ For more see the file 'readme/COPYING' for copying permission.
 """
 
 import sys
-from src.utils import settings
-from src.thirdparty.colorama import Fore, Back, Style, init
 
-# """
-# Show version number and exit.
-# """
+"""
+Show version number and exit.
+"""
 def show_version():
-  print("\n" + settings.VERSION)
+  from src.utils import settings
+  print(settings.VERSION)
   raise SystemExit()
 
 """
 Check python version number.
 """
 def python_version():
-  if settings.PYTHON_VERSION >= "3" or settings.PYTHON_VERSION < "2.6":
-    err_msg = "Incompatible Python version (" 
-    err_msg += settings.PYTHON_VERSION + ") detected. "
-    err_msg += "Use Python version 2.6.x or 2.7.x."
-    print(settings.print_critical_msg(err_msg))
+  PYTHON_VERSION = sys.version.split()[0]
+  if PYTHON_VERSION >= "3" or PYTHON_VERSION < "2.6":
+    err_msg = "[x] Critical: Incompatible Python version (" 
+    err_msg += PYTHON_VERSION + ") detected. "
+    err_msg += "Use Python version 2.6.x or 2.7.x.\n"
+    print(err_msg)
     raise SystemExit()

@@ -2,8 +2,8 @@
 # encoding: UTF-8
 
 """
-This file is part of Commix Project (http://commixproject.com).
-Copyright (c) 2014-2018 Anastasios Stasinopoulos (@ancst).
+This file is part of Commix Project (https://commixproject.com).
+Copyright (c) 2014-2019 Anastasios Stasinopoulos (@ancst).
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -50,7 +50,7 @@ def do_check():
   sys.stdout.write(settings.print_info_msg(info_msg))
   sys.stdout.flush()
   try:
-    privoxy_proxy = urllib2.ProxyHandler({settings.PROXY_PROTOCOL:settings.PRIVOXY_IP + ":" + PRIVOXY_PORT})
+    privoxy_proxy = urllib2.ProxyHandler({settings.SCHEME:settings.PRIVOXY_IP + ":" + PRIVOXY_PORT})
     opener = urllib2.build_opener(privoxy_proxy)
     urllib2.install_opener(opener)
   except:
@@ -107,6 +107,7 @@ def do_check():
         print err_msg.line, err_msg.message
       raise SystemExit()
 
+
 """
 Use the TOR HTTP Proxy.
 """
@@ -115,11 +116,20 @@ def use_tor(request):
     err_msg = "You cannot Tor network without access on the Internet."
     print settings.print_critical_msg(err_msg)
     raise SystemExit()
+    
+  try:
+    privoxy_proxy = urllib2.ProxyHandler({settings.SCHEME:settings.PRIVOXY_IP + ":" + PRIVOXY_PORT})
+    opener = urllib2.build_opener(privoxy_proxy)
+    urllib2.install_opener(opener)
+    response = urllib2.urlopen(request)
+    return response
 
-  privoxy_proxy = urllib2.ProxyHandler({settings.PROXY_PROTOCOL:settings.PRIVOXY_IP + ":" + PRIVOXY_PORT})
-  opener = urllib2.build_opener(privoxy_proxy)
-  urllib2.install_opener(opener)
-  response = urllib2.urlopen(request)
-  return response
-  
+  except Exception as err_msg:
+    try:
+      error_msg = str(err_msg.args[0]).split("] ")[1] + "."
+    except IndexError:
+      error_msg = str(err_msg).replace(": "," (") + ")."
+    print settings.print_critical_msg(error_msg)
+    raise SystemExit()
+
 # eof 

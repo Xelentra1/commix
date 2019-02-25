@@ -2,8 +2,8 @@
 # encoding: UTF-8
 
 """
-This file is part of Commix Project (http://commixproject.com).
-Copyright (c) 2014-2018 Anastasios Stasinopoulos (@ancst).
+This file is part of Commix Project (https://commixproject.com).
+Copyright (c) 2014-2019 Anastasios Stasinopoulos (@ancst).
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -80,12 +80,15 @@ def do_GET_check(url):
       parameters = ''.join(checks.check_similarities(_))
       value = re.findall(r'=(.*)', parameters)
       value = ''.join(value)
-      # Replace the value of parameter with INJECT tag
-      inject_value = value.replace(value, settings.INJECT_TAG)
       # Check if single parameter is supplied.
       if len(multi_parameters) == 1:
+        # Replace the value of parameter with INJECT tag
+        inject_value = value.replace(value, settings.INJECT_TAG)
         # Check if defined the INJECT_TAG
         if settings.INJECT_TAG not in parameters:
+          # Ignoring the anti-CSRF parameter(s).
+          if checks.ignore_anticsrf_parameter(parameters):
+            return urls_list
           if len(value) == 0:
             parameters = parameters + settings.INJECT_TAG
           else:
@@ -117,10 +120,12 @@ def do_GET_check(url):
               old = ''.join(old)
             else :
               old = value
-
             # Grab the value of parameter.
             value = re.findall(r'=(.*)', all_params[param])
             value = ''.join(value)
+            # Ignoring the anti-CSRF parameter(s).
+            if checks.ignore_anticsrf_parameter(all_params[param]):
+              continue
             # Replace the value of parameter with INJECT tag
             inject_value = value.replace(value, settings.INJECT_TAG)
             # Skip testing the parameter(s) with empty value(s).
@@ -200,10 +205,8 @@ Check if the 'INJECT_HERE' tag, is specified on POST Requests.
 """
 def do_POST_check(parameter):
   http_request_method = "POST"
-
   # Do replacement with the 'INJECT_HERE' tag, if the wild card char is provided.
   parameter = checks.wildcard_character(parameter).replace("'","\"")
-
   # Check if JSON Object.
   if checks.is_JSON_check(parameter):
     if not settings.IS_JSON:
@@ -216,7 +219,6 @@ def do_POST_check(parameter):
       settings.PARAMETER_DELIMITER = ""
   else:
     pass
-
   parameters_list = []
   # Split multiple parameters
   if settings.IS_XML:
@@ -233,7 +235,6 @@ def do_POST_check(parameter):
     except ValueError, err_msg:
       print settings.print_critical_msg(err_msg)
       raise SystemExit()
-
   # Check for inappropriate format in provided parameter(s).
   if len([s for s in multi_parameters if "=" in s]) != (len(multi_parameters)) and \
      not settings.IS_JSON and \
@@ -263,6 +264,9 @@ def do_POST_check(parameter):
     if checks.is_empty(multi_parameters, http_request_method):
       return parameter
     else:
+      # Ignoring the anti-CSRF parameter(s).
+      if checks.ignore_anticsrf_parameter(parameter):
+        return parameter
       # Replace the value of parameter with INJECT tag
       inject_value = value.replace(value, settings.INJECT_TAG)
       if len(value) == 0:
@@ -310,8 +314,10 @@ def do_POST_check(parameter):
           value = ''.join(value)
         else:  
           value = re.findall(r'=(.*)', all_params[param])
-          value = ''.join(value)  
-
+          value = ''.join(value)
+        # Ignoring the anti-CSRF parameter(s).
+        if checks.ignore_anticsrf_parameter(all_params[param]):
+          continue
         # Replace the value of parameter with INJECT tag
         inject_value = value.replace(value, settings.INJECT_TAG)
         # Skip testing the parameter(s) with empty value(s).
@@ -436,6 +442,12 @@ def do_cookie_check(cookie):
   inject_value = value.replace(value, settings.INJECT_TAG)
   # Check if single paramerter is supplied.
   if len(multi_parameters) == 1:
+    # Ignoring the anti-CSRF parameter(s).
+    if checks.ignore_anticsrf_parameter(cookie):
+      return cookie
+    # Ignoring the Google analytics cookie parameter.
+    if checks.ignore_google_analytics_cookie(cookie):
+      return cookie
     # Check for empty values (in provided parameters).
     checks.is_empty(multi_parameters, http_request_method)
     # Check if defined the INJECT_TAG
@@ -456,10 +468,6 @@ def do_cookie_check(cookie):
       # Check for empty values (in provided parameters).
       checks.is_empty(multi_parameters, http_request_method)
       for param in range(0, len(all_params)):
-        if all_params[param].upper().startswith(settings.GOOGLE_ANALYTICS_COOKIE_PREFIX):
-          info_msg = "Ignoring the cookie parameter '" + all_params[param].split("=")[0] + "'."
-          print settings.print_info_msg(info_msg)
-          continue
         if param == 0 :
             old = re.findall(r'=(.*)', all_params[param])
             old = ''.join(old)
@@ -468,6 +476,12 @@ def do_cookie_check(cookie):
         # Grab the value of cookie.
         value = re.findall(r'=(.*)', all_params[param])
         value = ''.join(value)
+        # Ignoring the anti-CSRF parameter(s)..
+        if checks.ignore_anticsrf_parameter(all_params[param]):
+          continue
+        # Ignoring the Google analytics cookie parameter.
+        if checks.ignore_google_analytics_cookie(all_params[param]):
+          continue
         # Replace the value of parameter with INJECT tag
         inject_value = value.replace(value, settings.INJECT_TAG)
         # Skip testing the parameter(s) with empty value(s).

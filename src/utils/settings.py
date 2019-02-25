@@ -2,8 +2,8 @@
 # encoding: UTF-8
 
 """
-This file is part of Commix Project (http://commixproject.com).
-Copyright (c) 2014-2018 Anastasios Stasinopoulos (@ancst).
+This file is part of Commix Project (https://commixproject.com).
+Copyright (c) 2014-2019 Anastasios Stasinopoulos (@ancst).
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -13,6 +13,7 @@ the Free Software Foundation, either version 3 of the License, or
 For more see the file 'readme/COPYING' for copying permission.
 """
 
+import re
 import os
 import sys
 import time
@@ -21,27 +22,24 @@ import urllib
 import socket
 import random
 from socket import error as socket_error
-
-if "--disable-coloring" in sys.argv:
-  from src.utils import colors
-  colors.ENABLE_COLORING = False
-
+        
 from src.thirdparty.colorama import Fore, Back, Style, init
 
 # Status Signs
-SUCCESS_SIGN =  "[" + Fore.GREEN + Style.BRIGHT + "+" + Style.RESET_ALL + "] "
-INFO_SIGN =  Style.RESET_ALL + "[" + Fore.BLUE + Style.BRIGHT + "*" + Style.RESET_ALL + "] "
-QUESTION_SIGN =  Style.RESET_ALL + "[" + Style.BRIGHT + Fore.MAGENTA + "?" + Style.RESET_ALL + "] "
-WARNING_SIGN =  "[" + Fore.YELLOW  + "!" + Style.RESET_ALL + "] " + Fore.YELLOW + "Warning: "
-WARNING_BOLD_SIGN =  "[" + Style.BRIGHT + Fore.YELLOW  + "!" + Style.RESET_ALL + "] " + Style.BRIGHT + Fore.YELLOW + "Warning: "
-ERROR_SIGN =  "[" + Fore.RED + Style.BRIGHT + "x" + Style.RESET_ALL  + "] " + Fore.RED + "Error: "
-CRITICAL_SIGN =  Back.RED + "[x] Critical: "
-PAYLOAD_SIGN =  "    |_ " + Fore.CYAN
-TRAFFIC_SIGN =  "    |_ " + Back.MAGENTA
+SUCCESS_SIGN = "[" + Fore.GREEN + Style.BRIGHT + "+" + Style.RESET_ALL + "] "
+INFO_SIGN = Style.RESET_ALL + "[" + Fore.BLUE + Style.BRIGHT + "*" + Style.RESET_ALL + "] "
+QUESTION_SIGN = Style.RESET_ALL + "[" + Style.BRIGHT + Fore.MAGENTA + "?" + Style.RESET_ALL + "] "
+WARNING_SIGN = "[" + Fore.YELLOW  + "!" + Style.RESET_ALL + "] " + Fore.YELLOW + "Warning: "
+WARNING_BOLD_SIGN = "[" + Style.BRIGHT + Fore.YELLOW  + "!" + Style.RESET_ALL + "] " + Style.BRIGHT + Fore.YELLOW + "Warning: "
+LEGAL_DISCLAIMER = "(" + Style.BRIGHT + Fore.RED + "!" + Style.RESET_ALL + ") " + "Legal disclaimer: "
+ERROR_SIGN = "[" + Fore.RED + Style.BRIGHT + "x" + Style.RESET_ALL  + "] " + Fore.RED + "Error: "
+CRITICAL_SIGN = Back.RED + "[x] Critical: "
+PAYLOAD_SIGN = "    |_ " + Fore.CYAN
+TRAFFIC_SIGN = "    |_ " + Back.MAGENTA
 HTTP_CONTENT_SIGN = Fore.MAGENTA
-CHECK_SIGN =  "[" + Fore.BLUE + Style.BRIGHT + "*" + Style.RESET_ALL  + "] " + "Checking "
-SUB_CONTENT_SIGN =  "    [" + Fore.GREY + Style.BRIGHT + "~" + Style.RESET_ALL  + "] "
-ABORTION_SIGN =  ERROR_SIGN 
+CHECK_SIGN = "[" + Fore.BLUE + Style.BRIGHT + "*" + Style.RESET_ALL  + "] " + "Checking "
+SUB_CONTENT_SIGN = "    [" + Fore.GREY + Style.BRIGHT + "~" + Style.RESET_ALL  + "] "
+ABORTION_SIGN = ERROR_SIGN 
 
 # Print error message
 def print_error_msg(err_msg):
@@ -60,12 +58,17 @@ def print_abort_msg(abort_msg):
 
 # Print warning message
 def print_warning_msg(warn_msg):
-  result = WARNING_SIGN + str(warn_msg)  + Style.RESET_ALL
+  result = WARNING_SIGN + str(warn_msg) + Style.RESET_ALL
   return result
 
 # Print warning message
 def print_bold_warning_msg(warn_msg):
-  result = WARNING_BOLD_SIGN + str(warn_msg)  + Style.RESET_ALL
+  result = WARNING_BOLD_SIGN + str(warn_msg) + Style.RESET_ALL
+  return result
+
+# Print legal disclaimer message
+def print_legal_disclaimer_msg(legal_disclaimer_msg):
+  result = LEGAL_DISCLAIMER + str(legal_disclaimer_msg) + Style.RESET_ALL
   return result
 
 # Print information message
@@ -103,6 +106,49 @@ def print_question_msg(question_msg):
   result = QUESTION_SIGN + question_msg 
   return result
 
+# argv checks
+def sys_argv_checks():
+  tamper_index = None
+  for i in xrange(len(sys.argv)):
+    # Disable coloring
+    if sys.argv[i] == "--disable-coloring":
+      from src.utils import colors
+      colors.ENABLE_COLORING = False
+    """
+    Dirty hack from sqlmap [1], regarding merging of tamper script arguments (e.g. --tamper A --tamper B -> --tamper=A,B)
+    [1] https://github.com/sqlmapproject/sqlmap/commit/f4a0820dcb5fded8bc4d0363c91276eb9a3445ae
+    """
+    if sys.argv[i].startswith("--tamper"):
+      if tamper_index is None:
+        tamper_index = i if '=' in sys.argv[i] else (i + 1 if i + 1 < len(sys.argv) and not sys.argv[i + 1].startswith('-') else None)
+      else:
+        sys.argv[tamper_index] = "%s,%s" % (sys.argv[tamper_index], sys.argv[i].split('=')[1] if '=' in sys.argv[i] else (sys.argv[i + 1] if i + 1 < len(sys.argv) and not sys.argv[i + 1].startswith('-') else ""))
+        sys.argv[i] = ""
+
+# argv input errors
+def sys_argv_errors():
+  reload(sys)  
+  sys.setdefaultencoding('utf8')
+  for i in xrange(len(sys.argv)):
+    # Check for illegal (non-console) quote characters.
+    if len(sys.argv[i]) > 1 and all(ord(_) in xrange(0x2018, 0x2020) for _ in ((sys.argv[i].split('=', 1)[-1].strip() or ' ')[0], sys.argv[i][-1])):
+        err_msg = "Illegal (non-console) quote characters ('" + sys.argv[i] + "')."
+        print print_critical_msg(err_msg)
+        raise SystemExit()
+    # Check for illegal (non-console) comma characters.
+    if len(sys.argv[i]) > 1 and u"\uff0c" in sys.argv[i].split('=', 1)[-1]:
+        err_msg = "Illegal (non-console) comma character ('" + sys.argv[i] + "')."
+        print print_critical_msg(err_msg)
+        raise SystemExit()
+    # Check for potentially miswritten (illegal '=') short option.
+    if re.search(r"\A-\w=.+", sys.argv[i]):
+        err_msg = "Potentially miswritten (illegal '=') short option detected ('" + sys.argv[i] + "')."
+        print print_critical_msg(err_msg)
+        raise SystemExit()
+
+# argv checks
+sys_argv_checks()
+
 """
 The global variables.
 """
@@ -111,19 +157,27 @@ APPLICATION = "commix"
 DESCRIPTION_FULL = "Automated All-in-One OS Command Injection and Exploitation Tool"
 DESCRIPTION = "The command injection exploiter"
 AUTHOR  = "Anastasios Stasinopoulos"
-VERSION_NUM = "2.7.8"
+VERSION_NUM = "2.8.31"
 STABLE_VERSION = False
 if STABLE_VERSION:
   VERSION = "v" + VERSION_NUM[:3] + "-stable"
 else:
   VERSION = "v" + VERSION_NUM[:3] + "-dev#" + VERSION_NUM[4:]
-YEAR = "2014-2018"
+YEAR = "2014-2019"
 AUTHOR_TWITTER = "@ancst" 
-APPLICATION_URL = "http://commixproject.com" 
+APPLICATION_URL = "https://commixproject.com" 
 APPLICATION_TWITTER = "@commixproject" 
 
 # Default User-Agent
 DEFAULT_USER_AGENT = APPLICATION + "/" + VERSION + " (" + APPLICATION_URL + ")"
+
+# Legal Disclaimer
+LEGAL_DISCLAIMER_MSG = "Usage of " + APPLICATION + " for attacking targets without prior mutual consent is illegal. " + \
+                       "It is the end user's responsibility to obey all applicable local, state and federal laws. " + \
+                       "Developers assume no liability and are not responsible for any misuse or damage caused by this program.\n"
+
+# Proxy
+PROXY_REGEX = r"((http[^:]*)://)?([\w\-.]+):(\d+)"
 
 # Inject Tag
 INJECT_TAG = "INJECT_HERE"
@@ -140,6 +194,9 @@ TEST_PARAMETER = ""
 
 # Skip testing for given parameter(s) - comma separated. 
 SKIP_PARAMETER = ""
+
+# Use a proxy to connect to the target URL.
+SCHEME = ""
 
 # Default target host OS (Unix-like)
 TARGET_OS = "unix"
@@ -203,10 +260,10 @@ HTTP_HEADER = ""
 PREFIXES = ["", " ", "'", "\"", "&", "%26", "|", "%7C", "%27", "%22", "'%26"]
 
 # The command injection separators.
-SEPARATORS = ["", ";", "%3B", "&", "%26", "&&", "%26%26", "|", "%7C", "||", "%7C%7C", "\n", "%0a", "\r\n", "%0d%0a"]
+SEPARATORS = ["", ";", "%3B", "&", "%26", "&&", "%26%26", "|", "%7C", "||", "%7C%7C", "%0a", "%0d%0a"]
 
 # The command injection suffixes.
-SUFFIXES = ["", "'", "\"", "#", "//", "\\\\", "&&", "%26%26", "%26'", "|", "%7C", "%27", "%22", "%5C%5C", "%2F%2F"]
+SUFFIXES = ["", "'", "\"", "&&", "%26%26", "|", "%7C", "||", "%7C%7C", " #", "//", "\\\\", "%26'", "%27", "%22", "%5C%5C", "%2F%2F"]
 
 # Bad combination of prefix and separator
 JUNK_COMBINATION = ["&&&", "|||", "|&&", "&|", "&;", "|;", "%7C;", "%26;", "%7C&"]
@@ -374,8 +431,8 @@ MOBILE_USER_AGENT_LIST = [
         "Mozilla/5.0 (SymbianOS/9.4; Series60/5.0 NokiaN97-1/10.0.012; Profile/MIDP-2.1 Configuration/CLDC-1.1; en-us) AppleWebKit/525 (KHTML, like Gecko) WicKed/7.1.12344",
 ]
 
-# Proxy Protocol
-PROXY_PROTOCOL = "http"
+# Default Scheme
+SCHEME = ""
 
 # Privoxy Proxy
 PRIVOXY_IP = "127.0.0.1"
@@ -432,104 +489,109 @@ PARAMETER_DELIMITER = "&"
 # Web-page encoding
 ENCODING = ""
 
-# Page default encoding
 DEFAULT_ENCODING = "utf-8"
+try:
+  unicode(DEFAULT_ENCODING, DEFAULT_ENCODING)
+except LookupError:
+  # Reference: http://en.wikipedia.org/wiki/ISO/IEC_8859-1
+  DEFAULT_ENCODING = "iso-8859-1"
 
 # Character Sets List. 
 # A complete list of the standard encodings Python supports.
 ENCODING_LIST = [
-   "ascii",
-   "big5",
-   "big5hkscs",
-   "cp037",
-   "cp424",
-   "cp437",
-   "cp500",
-   "cp720",
-   "cp737",
-   "cp775",
-   "cp850",
-   "cp852",
-   "cp855",
-   "cp856",
-   "cp857",
-   "cp858",
-   "cp860",
-   "cp861",
-   "cp862",
-   "cp863",
-   "cp864",
-   "cp865",
-   "cp866",
-   "cp869",
-   "cp874",
-   "cp875",
-   "cp932",
-   "cp949",
-   "cp950",
-   "cp1006",
-   "cp1026",
-   "cp1140",
-   "cp1250",
-   "cp1251",
-   "cp1252",
-   "cp1253",
-   "cp1254",
-   "cp1255",
-   "cp1256",
-   "cp1257",
-   "cp1258",
-   "euc-jp",
-   "euc-jis-2004",
-   "euc-jisx0213",
-   "euc-kr",
-   "gb2312",
-   "gbk",
-   "gb18030",
-   "hz",
-   "iso2022-jp",
-   "iso2022-jp-1",
-   "iso2022-jp-2",
-   "iso2022-jp-2004",
-   "iso2022-jp-3",
-   "iso2022-jp-ext",
-   "iso2022-kr",
-   "latin-1",
-   "iso8859-2",
-   "iso8859-3",
-   "iso8859-4",
-   "iso8859-5",
-   "iso8859-6",
-   "iso8859-7",
-   "iso8859-8",
-   "iso8859-9",
-   "iso8859-10",
-   "iso8859-13",
-   "iso8859-14",
-   "iso8859-15",
-   "iso8859-16",
-   "johab",
-   "koi8-r",
-   "koi8-u",
-   "mac-cyrillic",
-   "mac-greek",
-   "mac-iceland",
-   "mac-latin2",
-   "mac-roman",
-   "mac-turkish",
-   "ptcp154",
-   "shift-jis",
-   "shift-jis-2004",
-   "shift-jisx0213",
-   "utf-32",
-   "utf-32-be",
-   "utf-32-le",
-   "utf-16",
-   "utf-16-be",
-   "utf-16-le",
-   "utf-7",
-   "utf-8",
-   "utf-8-sig"
+  "iso-8859-1",
+  "ascii",
+  "big5",
+  "big5hkscs",
+  "cp037",
+  "cp424",
+  "cp437",
+  "cp500",
+  "cp720",
+  "cp737",
+  "cp775",
+  "cp850",
+  "cp852",
+  "cp855",
+  "cp856",
+  "cp857",
+  "cp858",
+  "cp860",
+  "cp861",
+  "cp862",
+  "cp863",
+  "cp864",
+  "cp865",
+  "cp866",
+  "cp869",
+  "cp874",
+  "cp875",
+  "cp932",
+  "cp949",
+  "cp950",
+  "cp1006",
+  "cp1026",
+  "cp1140",
+  "cp1250",
+  "cp1251",
+  "cp1252",
+  "cp1253",
+  "cp1254",
+  "cp1255",
+  "cp1256",
+  "cp1257",
+  "cp1258",
+  "euc-jp",
+  "euc-jis-2004",
+  "euc-jisx0213",
+  "euc-kr",
+  "gb2312",
+  "gbk",
+  "gb18030",
+  "hz",
+  "iso2022-jp",
+  "iso2022-jp-1",
+  "iso2022-jp-2",
+  "iso2022-jp-2004",
+  "iso2022-jp-3",
+  "iso2022-jp-ext",
+  "iso2022-kr",
+  "latin-1",
+  "iso8859-2",
+  "iso8859-3",
+  "iso8859-4",
+  "iso8859-5",
+  "iso8859-6",
+  "iso8859-7",
+  "iso8859-8",
+  "iso8859-9",
+  "iso8859-10",
+  "iso8859-13",
+  "iso8859-14",
+  "iso8859-15",
+  "iso8859-16",
+  "johab",
+  "koi8-r",
+  "koi8-u",
+  "mac-cyrillic",
+  "mac-greek",
+  "mac-iceland",
+  "mac-latin2",
+  "mac-roman",
+  "mac-turkish",
+  "ptcp154",
+  "shift-jis",
+  "shift-jis-2004",
+  "shift-jisx0213",
+  "utf-32",
+  "utf-32-be",
+  "utf-32-le",
+  "utf-16",
+  "utf-16-be",
+  "utf-16-le",
+  "utf-7",
+  "utf-8",
+  "utf-8-sig"
  ]
 
 # Default server banner
@@ -539,19 +601,48 @@ SERVER_BANNER = ""
 SERVER_BANNERS = [
     "Microsoft-IIS",
     "Apache",
-    "Nginx"
+    r"Nginx/([\w\.]+)",
+    r"GWS/([\w\.]+)",
+    r"lighttpd/([\w\.]+)",
+    r"openresty/([\w\.]+)",
+    r"LiteSpeed/([\w\.]+)",
+    r"Sun-ONE-Web-Server/([\w\.]+)"
 ]
 
 # Server banners list
 SERVER_OS_BANNERS = [
-    "microsoft",
-    "win",
-    "debian",
-    "ubuntu",
-    "fedora",
-    "centos",
-    "freebsd",
-    "unix"
+    r"(Microsoft|Windows|Win32)",
+    "Debian",
+    "Ubuntu",
+    "Fedora",
+    "CentOS",
+    "FreeBSD",
+    "NetBSD",
+    "OpenBSD",
+    "Slackware",
+    "SuSE",
+    "Mandrake",
+    "Gentoo",
+    r"Mac[\-\_\ ]?OSX",
+    r"Red[\-\_\ ]?Hat",
+    "Unix"
+]
+
+# Extensions skipped by crawler
+CRAWL_EXCLUDE_EXTENSIONS = [
+  "3ds", "3g2", "3gp", "7z", "DS_Store", "a", "aac", "adp", "ai", "aif", "aiff", "apk", "ar", 
+  "asf", "au", "avi", "bak", "bin", "bk", "bmp", "btif", "bz2", "cab", "caf", "cgm", "cmx", "cpio", "cr2", "dat", "deb", 
+  "djvu", "dll", "dmg", "dmp", "dng", "doc", "docx", "dot", "dotx", "dra", "dsk", "dts", "dtshd", "dvb", "dwg", "dxf", 
+  "ear", "ecelp4800", "ecelp7470", "ecelp9600", "egg", "eol", "eot", "epub", "exe", "f4v", "fbs", "fh", "fla", "flac", 
+  "fli", "flv", "fpx", "fst", "fvt", "g3", "gif", "gz", "h261", "h263", "h264", "ico", "ief", "image", "img", "ipa", 
+  "iso", "jar", "jpeg", "jpg", "jpgv", "jpm", "jxr", "ktx", "lvp", "lz", "lzma", "lzo", "m3u", "m4a", "m4v", "mar", 
+  "mdi", "mid", "mj2", "mka", "mkv", "mmr", "mng", "mov", "movie", "mp3", "mp4", "mp4a", "mpeg", "mpg", "mpga", "mxu", 
+  "nef", "npx", "o", "oga", "ogg", "ogv", "otf", "pbm", "pcx", "pdf", "pea", "pgm", "pic", "png", "pnm", "ppm", "pps", 
+  "ppt", "pptx", "ps", "psd", "pya", "pyc", "pyo", "pyv", "qt", "rar", "ras", "raw", "rgb", "rip", "rlc", "rz", "s3m", 
+  "s7z", "scm", "scpt", "sgi", "shar", "sil", "smv", "so", "sub", "swf", "tar", "tbz2", "tga", "tgz", "tif", "tiff", 
+  "tlz", "ts", "ttf", "uvh", "uvi", "uvm", "uvp", "uvs", "uvu", "viv", "vob", "war", "wav", "wax", "wbmp", "wdp", "weba", 
+  "webm", "webp", "whl", "wm", "wma", "wmv", "wmx", "woff", "woff2", "wvx", "xbm", "xif", "xls", "xlsx", "xlt", "xm", "xpi", 
+  "xpm", "xwd", "xz", "z", "zip", "zipx", "php"
 ]
 
 TARGET_APPLICATION = ""
@@ -581,13 +672,11 @@ IS_XML = False
 # Regular expression for XML POST data
 XML_RECOGNITION_REGEX = r'(?s)\A\s*<[^>]+>(.+>)?\s*\Z'
 
-# XML Data extraction
-# XML_VERSION_ENCODING = r'(<\?(.*)\?>)'
-# XML_FULL_DATA_EXTRACT = r'<([^?<>]+)>(.*)<(\/[^<>?]+)>'
-# XML_DATA_EXTRACT = r'<([^?<>]+)>([^<>]+)<(\/[^<>?]+)>'
-
 # JSON Data
 IS_JSON = False
+
+# Infixes used for automatic recognition of parameters carrying anti-CSRF tokens
+CSRF_TOKEN_PARAMETER_INFIXES = ("csrf", "xsrf", "token")
 
 # Regular expression used for detecting JSON POST data
 JSON_RECOGNITION_REGEX = r'(?s)\A(\s*\[)*\s*\{.*"[^"]+"\s*:\s*("[^"]*"|\d+|true|false|null).*\}\s*(\]\s*)*\Z'
@@ -692,7 +781,8 @@ TAMPER_SCRIPTS = {
                   "nested": False,
                   "sleep2usleep": False,
                   "sleep2timeout": False,
-                  "xforwardedfor": False
+                  "xforwardedfor": False,
+                  "dollaratsigns": False
                  }
 
 # HTTP Errors
@@ -742,7 +832,7 @@ INIT_TEST = ""
 TOR_CHECK_AGAIN = True
 
 # URL for checking internet connection.
-CHECK_INTERNET_ADDRESS = "ipinfo.io/"
+CHECK_INTERNET_ADDRESS = "http://ipinfo.io"
 
 # Check internet connection.
 CHECK_INTERNET = False
@@ -772,5 +862,15 @@ GOOGLE_ANALYTICS_COOKIE_PREFIX = "__UTM"
 
 # Default path for tamper scripts
 TAMPER_SCRIPTS_PATH = "src/core/tamper/"
+
+# HTTP Headers
+COOKIE = "Cookie"
+HOST = "Host"
+USER_AGENT = "User-Agent"
+REFERER = "Referer"
+HTTP_ACCEPT_HEADER = "Accept"
+
+# HTTP Headers values
+HTTP_ACCEPT_HEADER_VALUE = "*/*"
 
 # eof

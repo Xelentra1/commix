@@ -2,8 +2,8 @@
 # encoding: UTF-8
 
 """
-This file is part of Commix Project (http://commixproject.com).
-Copyright (c) 2014-2018 Anastasios Stasinopoulos (@ancst).
+This file is part of Commix Project (https://commixproject.com).
+Copyright (c) 2014-2019 Anastasios Stasinopoulos (@ancst).
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -249,7 +249,7 @@ Type '""" + Style.BRIGHT + """3""" + Style.RESET_ALL + """' to use a Ruby bind T
 Type '""" + Style.BRIGHT + """4""" + Style.RESET_ALL + """' to use a Python bind TCP shell.
 Type '""" + Style.BRIGHT + """5""" + Style.RESET_ALL + """' to use a Socat bind TCP shell.
 Type '""" + Style.BRIGHT + """6""" + Style.RESET_ALL + """' to use a Ncat bind TCP shell.
-\n---[ """ + Style.BRIGHT + Fore.BLUE  + """Meterpreter bind TCP shells""" + Style.RESET_ALL + """ ]---
+\n---[ """ + Style.BRIGHT + Fore.BLUE  + """Windows bind TCP shells""" + Style.RESET_ALL + """ ]---
 Type '""" + Style.BRIGHT + """7""" + Style.RESET_ALL + """' to use a PHP meterpreter bind TCP shell.
 Type '""" + Style.BRIGHT + """8""" + Style.RESET_ALL + """' to use a Python meterpreter bind TCP shell. 
 \ncommix(""" + Style.BRIGHT + Fore.RED + """bind_tcp_other""" + Style.RESET_ALL + """) > """)

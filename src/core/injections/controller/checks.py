@@ -2,8 +2,8 @@
 # encoding: UTF-8
 
 """
-This file is part of Commix Project (http://commixproject.com).
-Copyright (c) 2014-2018 Anastasios Stasinopoulos (@ancst).
+This file is part of Commix Project (https://commixproject.com).
+Copyright (c) 2014-2019 Anastasios Stasinopoulos (@ancst).
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -25,12 +25,50 @@ import base64
 import urllib
 import urlparse
 import traceback
-import importlib
 
 from src.utils import menu
 from src.utils import settings
-
+from src.utils import simple_http_server
 from src.thirdparty.colorama import Fore, Back, Style, init
+
+# Ignoring the anti-CSRF parameter(s).
+def ignore_anticsrf_parameter(parameter):
+  if any(parameter.lower().count(token) for token in settings.CSRF_TOKEN_PARAMETER_INFIXES):
+    info_msg = "Ignoring the parameter '" + parameter.split("=")[0]
+    info_msg += "' that appears to hold anti-CSRF token '" + parameter.split("=")[1] +  "'." 
+    print settings.print_info_msg(info_msg)
+    return True
+
+# Ignoring the Google analytics cookie parameter.
+def ignore_google_analytics_cookie(cookie):
+  if cookie.upper().startswith(settings.GOOGLE_ANALYTICS_COOKIE_PREFIX):
+    info_msg = "Ignoring the Google analytics cookie parameter '" + cookie.split("=")[0] + "'."
+    print settings.print_info_msg(info_msg)
+    return True
+
+"""
+Fix for %0a, %0d%0a separators
+"""
+def newline_fixation(payload):
+  payload = urllib.unquote(payload)
+  if "\n" in payload:
+    _ = payload.find("\n") + 1
+    payload = urllib.quote(payload[:_]) + payload[_:]
+  elif "\r\n" in payload:
+    _ = payload.find("\r\n") + 1
+    payload = urllib.quote(payload[:_]) + payload[_:]  
+  return payload
+
+"""
+Returns header value ignoring the letter case
+"""
+def get_header(headers, key):
+  value = None
+  for _ in (headers or {}):
+    if _.upper() == key.upper():
+      value = headers[_]
+      break
+  return value
 
 """
 Checks regarding a recognition of generic "your ip has been blocked" messages.
@@ -68,6 +106,7 @@ def captcha_check(page):
           warn_msg += "."
         print settings.print_bold_warning_msg(warn_msg)
         break
+        
 """
 Counting the total of HTTP(S) requests for the identified injection point(s), during the detection phase.
 """
@@ -456,29 +495,24 @@ Check if http / https.
 """
 def check_http_s(url):
   if settings.CHECK_INTERNET:
-    if "https" in url:
-      url = "https://" + settings.CHECK_INTERNET_ADDRESS
-    else:
-      url = "http://" + settings.CHECK_INTERNET_ADDRESS
+      url = settings.CHECK_INTERNET_ADDRESS
   else:
     try:
-      if settings.PROXY_PROTOCOL in urlparse.urlparse(url).scheme:
-        if menu.options.force_ssl and urlparse.urlparse(url).scheme != "https":
-          url = re.sub("\Ahttp:", "https:", url, re.I)
-          settings.PROXY_PROTOCOL = 'https'
-        if urlparse.urlparse(url).scheme == "https":
-          settings.PROXY_PROTOCOL = "https"
+      if re.search(r'^(?:http)s?://', url, re.I):
+        if not re.search(r"^https?://", url, re.I) and not re.search(r"^wss?://", url, re.I):
+          if re.search(r":443\b", url):
+            url = "https://" + url
+          else:
+            url = "http://" + url
+        settings.SCHEME = (urlparse.urlparse(url).scheme.lower() or "http") if not menu.options.force_ssl else "https"
       else:
-        if menu.options.force_ssl:
-          url = "https://" + url
-          settings.PROXY_PROTOCOL = "https"
-        else:
-          url = "http://" + url 
+        err_msg = "Invalid target URL has been given." 
+        print settings.print_critical_msg(err_msg)
+        raise SystemExit()
     except ValueError, err:
-      err_msg = e.split(":")[1].lstrip() + "."
-      print settings.print_error_msg(err_msg)
+      err_msg = "Invalid target URL has been given." 
+      print settings.print_critical_msg(err_msg)
       raise SystemExit()
-
   return url
   
 """
@@ -751,13 +785,14 @@ def tamper_scripts():
       import_script = str(settings.TAMPER_SCRIPTS_PATH + script + ".py").replace("/",".").split(".py")[0]
       print settings.SUB_CONTENT_SIGN + import_script.split(".")[3]
       try:
-        module = importlib.import_module(import_script)
+        module = __import__(import_script, fromlist=[None])
         if not hasattr(module, "__tamper__"):
           err_msg = "Missing variable '__tamper__' "
           err_msg += "in tamper script '" + import_script.split(".")[0] + "'."
           print settings.print_critical_msg(err_msg)
           raise SystemExit()
-      except ImportError:
+      except ImportError, err_msg:
+        print settings.print_error_msg(str(err_msg) + ".")
         pass
 
     # Using too many tamper scripts is usually not a good idea. :P
@@ -850,7 +885,7 @@ def whitespace_check(payload):
 Check for added caret between the characters of the generated payloads.
 """
 def other_symbols(payload):
-  # Check for symbols
+  # Check for caret symbol
   if payload.count("^") >= 10:
     if not settings.TAMPER_SCRIPTS['caret']:
       if menu.options.tamper:
@@ -859,6 +894,16 @@ def other_symbols(payload):
         menu.options.tamper = "caret"  
     from src.core.tamper import caret
     payload = caret.tamper(payload)
+
+  # Check for dollar sign followed by an at-sign
+  if payload.count("$@") >= 10:
+    if not settings.TAMPER_SCRIPTS['dollaratsigns']:
+      if menu.options.tamper:
+        menu.options.tamper = menu.options.tamper + ",dollaratsigns"
+      else:
+        menu.options.tamper = "dollaratsigns"  
+    from src.core.tamper import dollaratsigns
+    payload = dollaratsigns.tamper(payload)
 
 """
 Check for (multiple) added back slashes between the characters of the generated payloads.
@@ -993,6 +1038,10 @@ def perform_payload_modification(payload):
     elif encode_type == 'nested':
       from src.core.tamper import nested
       payload = nested.tamper(payload) 
+    # Add dollar sign followed by an at-sign.
+    elif encode_type == 'dollaratsigns':
+      from src.core.tamper import dollaratsigns
+      payload = dollaratsigns.tamper(payload) 
 
   for encode_type in list(set(settings.MULTI_ENCODED_PAYLOAD[::-1])):
     # Encode payload to hex format.    
@@ -1179,5 +1228,123 @@ def generate_char_pool(num_of_chars):
       char_pool = range(96, 122) + range(65, 90)
     char_pool = char_pool + range(48, 57) + range(32, 48) + range(90, 96)  + range(57, 65)  + range(122, 127)  
   return char_pool
+
+"""
+Check if defined "--file-upload" option.
+"""
+def file_upload():
+  if not re.match(settings.VALID_URL_FORMAT, menu.options.file_upload):
+    # Check if not defined URL for upload.
+    while True:
+      if not menu.options.batch:
+        question_msg = "Do you want to enable an HTTP server? [Y/n] > "
+        sys.stdout.write(settings.print_question_msg(question_msg))
+        enable_HTTP_server = sys.stdin.readline().replace("\n","").lower()
+      else:
+        enable_HTTP_server = ""
+      if len(enable_HTTP_server) == 0:
+         enable_HTTP_server = "y"              
+      if enable_HTTP_server in settings.CHOICE_YES:
+
+        # Check if file exists
+        if not os.path.isfile(menu.options.file_upload):
+          err_msg = "The '" + menu.options.file_upload + "' file, does not exist."
+          sys.stdout.write(settings.print_critical_msg(err_msg) + "\n")
+          raise SystemExit()
+
+        # Setting the local HTTP server.
+        if settings.LOCAL_HTTP_IP == None:
+          while True:
+            question_msg = "Please enter your interface IP address > "
+            sys.stdout.write(settings.print_question_msg(question_msg))
+            ip_addr = sys.stdin.readline().replace("\n","").lower()
+
+            # check if IP address is valid
+            ip_check = simple_http_server.is_valid_ipv4(ip_addr)
+            if ip_check == False:
+              err_msg = "The provided IP address seems not valid."  
+              print settings.print_error_msg(err_msg)
+              pass
+            else:
+              settings.LOCAL_HTTP_IP = ip_addr
+              break
+
+        # Check for invalid HTTP server's port.
+        if settings.LOCAL_HTTP_PORT < 1 or settings.LOCAL_HTTP_PORT > 65535:
+          err_msg = "Invalid HTTP server's port (" + str(settings.LOCAL_HTTP_PORT) + ")." 
+          print settings.print_critical_msg(err_msg)
+          raise SystemExit()
+        
+        http_server = "http://" + str(settings.LOCAL_HTTP_IP) + ":" + str(settings.LOCAL_HTTP_PORT)
+        info_msg = "Setting the HTTP server on '" + http_server + "/'. "  
+        print settings.print_info_msg(info_msg)
+        menu.options.file_upload = http_server + menu.options.file_upload
+        simple_http_server.main()
+        break
+
+      elif enable_HTTP_server in settings.CHOICE_NO:
+        if not re.match(settings.VALID_URL_FORMAT, menu.options.file_upload):
+          err_msg = "The '" + menu.options.file_upload + "' is not a valid URL. "
+          print settings.print_critical_msg(err_msg)
+          raise SystemExit()
+        break  
+      elif enable_HTTP_server in settings.CHOICE_QUIT:
+        raise SystemExit()
+      else:
+        err_msg = "'" + enable_HTTP_server + "' is not a valid answer."  
+        print settings.print_error_msg(err_msg)
+        pass
+
+"""
+Check for wrong flags
+"""
+def check_wrong_flags():
+  if settings.TARGET_OS == "win":
+    if menu.options.is_root :
+      warn_msg = "Swithing '--is-root' to '--is-admin' because the "
+      warn_msg += "target has been identified as windows."
+      print settings.print_warning_msg(warn_msg)
+    if menu.options.passwords:
+      warn_msg = "The '--passwords' option, is not yet available for Windows targets."
+      print settings.print_warning_msg(warn_msg)  
+    if menu.options.file_upload :
+      warn_msg = "The '--file-upload' option, is not yet available for windows targets. "
+      warn_msg += "Instead, use the '--file-write' option."
+      print settings.print_warning_msg(warn_msg)  
+      raise SystemExit()
+  else: 
+    if menu.options.is_admin : 
+      warn_msg = "Swithing the '--is-admin' to '--is-root' because "
+      warn_msg += "the target has been identified as unix-like. "
+      print settings.print_warning_msg(warn_msg)
+
+"""
+Define python working dir (for windows targets)
+"""
+def define_py_working_dir():
+  if settings.TARGET_OS == "win" and menu.options.alter_shell:
+    while True:
+      if not menu.options.batch:
+        question_msg = "Do you want to use '" + settings.WIN_PYTHON_DIR 
+        question_msg += "' as Python working directory on the target host? [Y/n] > "
+        sys.stdout.write(settings.print_question_msg(question_msg))
+        python_dir = sys.stdin.readline().replace("\n","").lower()
+      else:
+        python_dir = ""  
+      if len(python_dir) == 0:
+         python_dir = "y" 
+      if python_dir in settings.CHOICE_YES:
+        break
+      elif python_dir in settings.CHOICE_NO:
+        question_msg = "Please provide a custom working directory for Python (e.g. '" 
+        question_msg += settings.WIN_PYTHON_DIR + "') > "
+        sys.stdout.write(settings.print_question_msg(question_msg))
+        settings.WIN_PYTHON_DIR = sys.stdin.readline().replace("\n","").lower()
+        break
+      else:
+        err_msg = "'" + python_dir + "' is not a valid answer."  
+        print settings.print_error_msg(err_msg)
+        pass
+    settings.USER_DEFINED_PYTHON_DIR = True
 
 # eof

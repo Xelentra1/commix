@@ -2,8 +2,8 @@
 # encoding: UTF-8
 
 """
-This file is part of Commix Project (http://commixproject.com).
-Copyright (c) 2014-2018 Anastasios Stasinopoulos (@ancst).
+This file is part of Commix Project (https://commixproject.com).
+Copyright (c) 2014-2019 Anastasios Stasinopoulos (@ancst).
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -110,7 +110,7 @@ def injection_test_results(response, TAG, randvcalc):
     html_data = html_data.replace("\n"," ")
     # cleanup string / unescape html to string
     html_data = urllib2.unquote(html_data).decode(settings.DEFAULT_ENCODING)
-    html_data = HTMLParser.HTMLParser().unescape(html_data).encode(sys.getfilesystemencoding())
+    html_data = HTMLParser.HTMLParser().unescape(html_data).encode(settings.DEFAULT_ENCODING)
 
     # Replace non-ASCII characters with a single space
     re.sub(r"[^\x00-\x7f]",r" ", html_data)
@@ -277,7 +277,7 @@ def injection_results(response, TAG, cmd):
     html_data = html_data.replace("\n"," ")
     # cleanup string / unescape html to string
     html_data = urllib2.unquote(html_data).decode(settings.DEFAULT_ENCODING)
-    html_data = HTMLParser.HTMLParser().unescape(html_data).encode(sys.getfilesystemencoding())
+    html_data = HTMLParser.HTMLParser().unescape(html_data).encode(settings.DEFAULT_ENCODING)
 
     # Replace non-ASCII characters with a single space
     re.sub(r"[^\x00-\x7f]",r" ", html_data)

@@ -2,8 +2,8 @@
 # encoding: UTF-8
 
 """
-This file is part of Commix Project (http://commixproject.com).
-Copyright (c) 2014-2018 Anastasios Stasinopoulos (@ancst).
+This file is part of Commix Project (https://commixproject.com).
+Copyright (c) 2014-2019 Anastasios Stasinopoulos (@ancst).
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -311,7 +311,10 @@ def injection_results(response, TAG, cmd):
   html_data = response.read()
   html_data = re.sub("\n", new_line, html_data)
   shell = re.findall(r"" + TAG + new_line + TAG + "(.*)" + TAG + new_line + TAG + "", html_data)
-  shell = shell[0].replace(new_line, "\n").rstrip().lstrip()
+  try:
+    shell = shell[0].replace(new_line, "\n").rstrip().lstrip()
+  except IndexError:
+    pass
   return shell
 
 # eof

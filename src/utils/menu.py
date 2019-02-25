@@ -2,8 +2,8 @@
 # encoding: UTF-8
 
 """
-This file is part of Commix Project (http://commixproject.com).
-Copyright (c) 2014-2018 Anastasios Stasinopoulos (@ancst).
+This file is part of Commix Project (https://commixproject.com).
+Copyright (c) 2014-2019 Anastasios Stasinopoulos (@ancst).
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -224,7 +224,7 @@ request.add_option("--proxy",
                 action="store",
                 dest="proxy",
                 default=False,
-                help="Use a HTTP proxy (e.g. '127.0.0.1:8080').")
+                help="Use a proxy to connect to the target URL.")
                 
 request.add_option("--tor",
                 action="store_true",
@@ -607,6 +607,9 @@ option.help = option.help.capitalize().replace("Show this help message and exit"
 # Checkall the banner
 if not options.version:
     banner()
+    
+# argv input errors
+settings.sys_argv_errors()
 
 """
 The "os_shell" available options.

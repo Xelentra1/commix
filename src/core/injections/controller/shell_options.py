@@ -2,8 +2,8 @@
 # encoding: UTF-8
 
 """
-This file is part of Commix Project (http://commixproject.com).
-Copyright (c) 2014-2018 Anastasios Stasinopoulos (@ancst).
+This file is part of Commix Project (https://commixproject.com).
+Copyright (c) 2014-2019 Anastasios Stasinopoulos (@ancst).
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -29,6 +29,7 @@ from src.thirdparty.colorama import Fore, Back, Style, init
 
 from src.core.shells import bind_tcp
 from src.core.shells import reverse_tcp
+
 from src.core.injections.results_based.techniques.classic import cb_injector
 from src.core.injections.results_based.techniques.eval_based import eb_injector
 from src.core.injections.semiblind.techniques.file_based import fb_injector

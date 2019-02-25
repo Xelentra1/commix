@@ -2,8 +2,8 @@
 # encoding: UTF-8
 
 """
-This file is part of Commix Project (http://commixproject.com).
-Copyright (c) 2014-2018 Anastasios Stasinopoulos (@ancst).
+This file is part of Commix Project (https://commixproject.com).
+Copyright (c) 2014-2019 Anastasios Stasinopoulos (@ancst).
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -34,18 +34,13 @@ Returns abbreviated commit hash number as retrieved with "git rev-parse --short 
 """
 def revision_num():
   try:
-    if menu.options.verbose:
-      start = 0
-      end = 0
-      start = time.time()
-      if menu.options.verbose:
-        print Fore.MAGENTA
-      subprocess.Popen("git reset --hard HEAD && git clean -fd && git pull", shell=True).wait()
-    else:
-      process = subprocess.Popen("git reset --hard HEAD && git clean -fd && git pull", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-      stdout, _ = process.communicate()
-      info_msg = ('Updated to', 'Already at')["Already" in stdout]
+    start = 0
+    end = 0
+    start = time.time()
+    process = subprocess.Popen("git reset --hard HEAD && git clean -fd && git pull", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout, _ = process.communicate()
     if not menu.options.verbose:
+      info_msg = ('Updated to', 'Already at')["Already" in stdout]
       process = subprocess.Popen("git rev-parse --verify HEAD", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     # Delete *.pyc files.
     subprocess.Popen("find . -name \"*.pyc\" -delete", shell=True).wait()
@@ -58,7 +53,7 @@ def revision_num():
       info_msg += " the latest revision '" + str(rev_num[:7]) + "'."
       print "[" + Fore.GREEN + " SUCCEED " + Style.RESET_ALL + "]"
     else:
-      sys.stdout.write(Style.RESET_ALL)
+      sys.stdout.write(Fore.MAGENTA + "\n" + stdout + Style.RESET_ALL)
       end  = time.time()
       how_long = int(end - start)
       info_msg = "Finished in " + time.strftime('%H:%M:%S', time.gmtime(how_long)) + "."
@@ -129,7 +124,7 @@ Check for new version of commix
 """
 def check_for_update():
   try:
-    response = urllib2.urlopen('https://raw.githubusercontent.com/commixproject/commix/master/src/utils/settings.py')
+    response = urllib2.urlopen('https://raw.githubusercontent.com/commixproject/commix/master/src/utils/settings.py', timeout=1)
     version_check = response.readlines()
     for line in version_check:
       line = line.rstrip()
@@ -224,7 +219,7 @@ Check the latest version of unicorn
 def check_unicorn_version(current_version):
   try:
     if len(current_version) != 0: 
-      response = urllib2.urlopen('https://raw.githubusercontent.com/trustedsec/unicorn/master/unicorn.py')
+      response = urllib2.urlopen('https://raw.githubusercontent.com/trustedsec/unicorn/master/unicorn.py', timeout=1)
       latest_version = response.readlines()
       for line in latest_version:
         line = line.rstrip()

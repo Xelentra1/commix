@@ -2,8 +2,8 @@
 # encoding: UTF-8
 
 """
-This file is part of Commix Project (http://commixproject.com).
-Copyright (c) 2014-2018 Anastasios Stasinopoulos (@ancst).
+This file is part of Commix Project (https://commixproject.com).
+Copyright (c) 2014-2019 Anastasios Stasinopoulos (@ancst).
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -85,7 +85,7 @@ def check_http_traffic(request):
   
   # Delay in seconds between each HTTP request
   time.sleep(int(settings.DELAY))
-  if settings.PROXY_PROTOCOL == 'https':
+  if settings.SCHEME == 'https':
       handle = httplib.HTTPSConnection
   else:
       handle = httplib.HTTPConnection
@@ -116,13 +116,13 @@ def check_http_traffic(request):
           logs.log_traffic("\n" + header) 
       if menu.options.traffic_file:
         logs.log_traffic("\n\n")
-      if settings.PROXY_PROTOCOL == 'https':
+      if settings.SCHEME == 'https':
         httplib.HTTPSConnection.request(self, method, url, body, headers)
       else:
         httplib.HTTPConnection.request(self, method, url, body, headers)
         
   class connection_handler(urllib2.HTTPHandler, urllib2.HTTPSHandler):
-    if settings.PROXY_PROTOCOL == 'https':
+    if settings.SCHEME == 'https':
       def https_open(self, req):
         try:
           return self.do_open(do_connection, req)
@@ -202,6 +202,13 @@ def check_http_traffic(request):
           print err_msg.line, err_msg.message
         raise SystemExit()
 
+      except ValueError, err:
+        if settings.VERBOSITY_LEVEL < 2:
+          print "[ " + Fore.RED + "FAILED" + Style.RESET_ALL + " ]"
+        err_msg = "Invalid target URL has been given." 
+        print settings.print_critical_msg(err_msg)
+        raise SystemExit()
+
       except AttributeError:
         raise SystemExit() 
       
@@ -255,17 +262,21 @@ def check_http_traffic(request):
       err_msg += " (" + str(err.args[0]).split("] ")[1] + ")."
     except IndexError:
       err_msg += "."
-    print settings.print_critical_msg(err_msg + ").")
+    print settings.print_critical_msg(err_msg)
     raise SystemExit()
 
   except httplib.IncompleteRead, err_msg:
-    print settings.print_critical_msg(str(err_msg) + ".")
+    print settings.print_critical_msg(str(err_msg))
     raise SystemExit()
 
   except UnicodeDecodeError, err_msg:
-    print settings.print_critical_msg(str(err_msg) + ".")
+    print settings.print_critical_msg(str(err_msg))
     raise SystemExit()
 
+  except LookupError, err_msg:
+    print settings.print_critical_msg(str(err_msg))
+    raise SystemExit()
+    
 """
 Check for added headers.
 """
@@ -273,19 +284,22 @@ def do_check(request):
 
   # Check if defined any Host HTTP header.
   if menu.options.host and settings.HOST_INJECTION == None:
-    request.add_header('Host', menu.options.host)
+    request.add_header(settings.HOST, menu.options.host)
 
   # Check if defined any User-Agent HTTP header.
   if menu.options.agent:
-    request.add_header('User-Agent', menu.options.agent)
+    request.add_header(settings.USER_AGENT, menu.options.agent)
 
   # Check if defined any Referer HTTP header.
   if menu.options.referer and settings.REFERER_INJECTION == None:
-    request.add_header('Referer', menu.options.referer)
+    request.add_header(settings.REFERER, menu.options.referer)
    
   # Check if defined any Cookie HTTP header.
   if menu.options.cookie and settings.COOKIE_INJECTION == False:
-    request.add_header('Cookie', menu.options.cookie)
+    request.add_header(settings.COOKIE, menu.options.cookie)
+  
+  if not checks.get_header(request.headers, settings.HTTP_ACCEPT_HEADER):
+    request.add_header(settings.HTTP_ACCEPT_HEADER, settings.HTTP_ACCEPT_HEADER_VALUE)
 
   # Appends a fake HTTP header 'X-Forwarded-For'
   if settings.TAMPER_SCRIPTS["xforwardedfor"]:
@@ -294,43 +308,42 @@ def do_check(request):
 
   # Check if defined any HTTP Authentication credentials.
   # HTTP Authentication: Basic / Digest Access Authentication.
-  if not menu.options.ignore_401:
-    if menu.options.auth_cred and menu.options.auth_type:
-      try:
-        settings.SUPPORTED_HTTP_AUTH_TYPES.index(menu.options.auth_type)
-        if menu.options.auth_type == "basic":
-          b64_string = base64.encodestring(menu.options.auth_cred).replace('\n', '')
-          request.add_header("Authorization", "Basic " + b64_string + "")
-        elif menu.options.auth_type == "digest":
+  if menu.options.auth_cred and menu.options.auth_type:
+    try:
+      settings.SUPPORTED_HTTP_AUTH_TYPES.index(menu.options.auth_type)
+      if menu.options.auth_type == "basic":
+        b64_string = base64.encodestring(menu.options.auth_cred).replace('\n', '')
+        request.add_header("Authorization", "Basic " + b64_string + "")
+      elif menu.options.auth_type == "digest":
+        try:
+          url = menu.options.url
           try:
-            url = menu.options.url
-            try:
-              response = urllib2.urlopen(url)
-            except urllib2.HTTPError, e:
-              try:
-                authline = e.headers.get('www-authenticate', '')  
-                authobj = re.match('''(\w*)\s+realm=(.*),''',authline).groups()
-                realm = authobj[1].split(',')[0].replace("\"","")
-                user_pass_pair = menu.options.auth_cred.split(":")
-                username = user_pass_pair[0]
-                password = user_pass_pair[1]
-                authhandler = urllib2.HTTPDigestAuthHandler()
-                authhandler.add_password(realm, url, username, password)
-                opener = urllib2.build_opener(authhandler)
-                urllib2.install_opener(opener)
-                result = urllib2.urlopen(url)
-              except AttributeError:
-                pass
+            response = urllib2.urlopen(url)
           except urllib2.HTTPError, e:
-            pass
-      except ValueError:
-        err_msg = "Unsupported / Invalid HTTP authentication type '" + menu.options.auth_type + "'."
-        err_msg += " Try basic or digest HTTP authentication type."
-        print settings.print_critical_msg(err_msg)
-        raise SystemExit()   
-    else:
-      pass        
-    
+            try:
+              authline = e.headers.get('www-authenticate', '')  
+              authobj = re.match('''(\w*)\s+realm=(.*),''',authline).groups()
+              realm = authobj[1].split(',')[0].replace("\"","")
+              user_pass_pair = menu.options.auth_cred.split(":")
+              username = user_pass_pair[0]
+              password = user_pass_pair[1]
+              authhandler = urllib2.HTTPDigestAuthHandler()
+              authhandler.add_password(realm, url, username, password)
+              opener = urllib2.build_opener(authhandler)
+              urllib2.install_opener(opener)
+              result = urllib2.urlopen(url)
+            except AttributeError:
+              pass
+        except urllib2.HTTPError, e:
+          pass
+    except ValueError:
+      err_msg = "Unsupported / Invalid HTTP authentication type '" + menu.options.auth_type + "'."
+      err_msg += " Try basic or digest HTTP authentication type."
+      print settings.print_critical_msg(err_msg)
+      raise SystemExit()   
+  else:
+    pass        
+  
   # The MIME media type for JSON.
   if settings.IS_JSON:
     request.add_header("Content-Type", "application/json")

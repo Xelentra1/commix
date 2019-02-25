@@ -2,8 +2,8 @@
 # encoding: UTF-8
 
 """
-This file is part of Commix Project (http://commixproject.com).
-Copyright (c) 2014-2018 Anastasios Stasinopoulos (@ancst).
+This file is part of Commix Project (https://commixproject.com).
+Copyright (c) 2014-2019 Anastasios Stasinopoulos (@ancst).
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -71,7 +71,7 @@ else:
       readline_error = True
 pass
 
-# Set default encoding (UTF-8)
+# Set default encoding
 reload(sys)
 sys.setdefaultencoding(settings.DEFAULT_ENCODING)
 
@@ -132,12 +132,22 @@ def examine_request(request):
         print settings.print_critical_msg(err_msg)
         raise SystemExit()
       except Exception as err_msg:
-        try:
-          error_msg = str(err_msg.args[0]).split("] ")[1] + "."
-        except IndexError:
-          error_msg = str(err_msg).replace(": "," (") + ")."
-        print settings.print_critical_msg(error_msg)
-        raise SystemExit()
+        if "Unauthorized" in str(err_msg):
+          if menu.options.ignore_401:
+            pass
+          elif menu.options.auth_type and menu.options.auth_cred:
+            err_msg = "The provided pair of " + menu.options.auth_type 
+            err_msg += " HTTP authentication credentials '" + menu.options.auth_cred + "'"
+            err_msg += " seems to be invalid."
+            print settings.print_critical_msg(err_msg)
+            raise SystemExit()
+        else:  
+          try:
+            error_msg = str(err_msg.args[0]).split("] ")[1] + "."
+          except IndexError:
+            error_msg = str(err_msg).replace(": "," (") + ")."
+          print settings.print_critical_msg(error_msg)
+          raise SystemExit()
 
   except urllib2.HTTPError, err_msg:
     error_description = ""
@@ -224,6 +234,14 @@ def init_request(url):
   if settings.VERBOSITY_LEVEL >= 1:
     info_msg = "Creating HTTP requests opener object."
     print settings.print_info_msg(info_msg) 
+  # Check for URL redirection
+  if not menu.options.ignore_redirects:
+    url = redirection.do_check(url)
+  # Used a valid pair of valid credentials
+  if menu.options.auth_cred and menu.options.auth_type:
+    info_msg = "Using '" + menu.options.auth_cred + "' pair of " + menu.options.auth_type 
+    info_msg += " HTTP authentication credentials."
+    print settings.print_info_msg(info_msg)
   return request
 
 """
@@ -328,6 +346,10 @@ def main(filename, url):
         print settings.print_critical_msg(err_msg)
         raise SystemExit
 
+    if menu.options.ignore_session:
+      # Ignore session
+      session_handler.ignore(url)      
+
     # Check provided parameters for tests
     if menu.options.test_parameter or menu.options.skip_parameter:     
       if menu.options.test_parameter != None :
@@ -421,495 +443,67 @@ def main(filename, url):
   
     # Check if defined "--url" or "-m" option.
     if url:
-
+      if menu.options.auth_cred and menu.options.auth_cred and settings.VERBOSITY_LEVEL >= 1:
+        success_msg = "Used a valid pair of " + menu.options.auth_type 
+        success_msg += " HTTP authentication credentials '" + menu.options.auth_cred + "'." 
+        print settings.print_success_msg(success_msg)
       # Load the crawler
-      if menu.options.crawldepth > 0 or menu.options.sitemap_url:
-        if menu.options.crawldepth > 0:
-          menu.options.DEFAULT_CRAWLDEPTH_LEVEL = menu.options.crawldepth
-        else:  
-          if menu.options.sitemap_url:
-            while True:
-              if not menu.options.batch:
-                question_msg = "Do you want to change the crawling depth level? [Y/n] > "
-                sys.stdout.write(settings.print_question_msg(question_msg))
-                change_depth_level = sys.stdin.readline().replace("\n","").lower()
-              else:
-                change_depth_level = ""
-              if len(change_depth_level) == 0:
-                 change_depth_level = "y"              
-              if change_depth_level in settings.CHOICE_YES or change_depth_level in settings.CHOICE_NO:
-                break  
-              elif change_depth_level in settings.CHOICE_QUIT:
-                raise SystemExit()
-              else:
-                err_msg = "'" + change_depth_level + "' is not a valid answer."  
-                print settings.print_error_msg(err_msg)
-                pass
-
-            # Change the crawling depth level.
-            if change_depth_level in settings.CHOICE_YES:
-              while True:
-                question_msg = "Please enter the crawling depth level (1-2) > "
-                sys.stdout.write(settings.print_question_msg(question_msg))
-                depth_level = sys.stdin.readline().replace("\n","").lower()
-                if len(depth_level) == 0:
-                  depth_level = 1
-                  break
-                elif str(depth_level) != "1" and str(depth_level) != "2":
-                  err_msg = "Depth level '" + depth_level + "' is not a valid answer."  
-                  print settings.print_error_msg(err_msg)
-                  pass
-                else: 
-                  menu.options.DEFAULT_CRAWLDEPTH_LEVEL = depth_level
-                  break
-
-        # Crawl the url.        
+      if menu.options.crawldepth > 0 or menu.options.sitemap_url:  
         url = crawler.crawler(url)
-
       try:
-        # Check for URL redirection
-        if not menu.options.ignore_redirects:
-          url = redirection.do_check(url)
-
         if menu.options.flush_session:
           session_handler.flush(url)
-
         # Check for CGI scripts on url
         checks.check_CGI_scripts(url)
-
         # Modification on payload
         if not menu.options.shellshock:
           if not settings.USE_BACKTICKS:
             settings.SYS_USERS  = "echo $(" + settings.SYS_USERS + ")"
             settings.SYS_PASSES  = "echo $(" + settings.SYS_PASSES + ")"
-
-        # Load tamper scripts
-        if menu.options.tamper:
-          checks.tamper_scripts()
-
         # Check if defined "--file-upload" option.
         if menu.options.file_upload:
-          if not re.match(settings.VALID_URL_FORMAT, menu.options.file_upload):
-
-            # Check if not defined URL for upload.
-            while True:
-              if not menu.options.batch:
-                question_msg = "Do you want to enable an HTTP server? [Y/n] > "
-                sys.stdout.write(settings.print_question_msg(question_msg))
-                enable_HTTP_server = sys.stdin.readline().replace("\n","").lower()
-              else:
-                enable_HTTP_server = ""
-              if len(enable_HTTP_server) == 0:
-                 enable_HTTP_server = "y"              
-              if enable_HTTP_server in settings.CHOICE_YES:
-
-                # Check if file exists
-                if not os.path.isfile(menu.options.file_upload):
-                  err_msg = "The '" + menu.options.file_upload + "' file, does not exist."
-                  sys.stdout.write(settings.print_critical_msg(err_msg) + "\n")
-                  raise SystemExit()
-
-                # Setting the local HTTP server.
-                if settings.LOCAL_HTTP_IP == None:
-                  while True:
-                    question_msg = "Please enter your interface IP address > "
-                    sys.stdout.write(settings.print_question_msg(question_msg))
-                    ip_addr = sys.stdin.readline().replace("\n","").lower()
-
-                    # check if IP address is valid
-                    ip_check = simple_http_server.is_valid_ipv4(ip_addr)
-                    if ip_check == False:
-                      err_msg = "The provided IP address seems not valid."  
-                      print settings.print_error_msg(err_msg)
-                      pass
-                    else:
-                      settings.LOCAL_HTTP_IP = ip_addr
-                      break
-
-                # Check for invalid HTTP server's port.
-                if settings.LOCAL_HTTP_PORT < 1 or settings.LOCAL_HTTP_PORT > 65535:
-                  err_msg = "Invalid HTTP server's port (" + str(settings.LOCAL_HTTP_PORT) + ")." 
-                  print settings.print_critical_msg(err_msg)
-                  raise SystemExit()
-                
-                http_server = "http://" + str(settings.LOCAL_HTTP_IP) + ":" + str(settings.LOCAL_HTTP_PORT) + "/"
-                info_msg = "Setting the HTTP server on '" + http_server + "'. "  
-                print settings.print_info_msg(info_msg)
-                menu.options.file_upload = http_server + menu.options.file_upload
-                simple_http_server.main()
-                break
-
-              elif enable_HTTP_server in settings.CHOICE_NO:
-                if not re.match(settings.VALID_URL_FORMAT, menu.options.file_upload):
-                  err_msg = "The '" + menu.options.file_upload + "' is not a valid URL. "
-                  print settings.print_critical_msg(err_msg)
-                  raise SystemExit()
-                break  
-              elif enable_HTTP_server in settings.CHOICE_QUIT:
-                raise SystemExit()
-              else:
-                err_msg = "'" + enable_HTTP_server + "' is not a valid answer."  
-                print settings.print_error_msg(err_msg)
-                pass
-
+          checks.file_upload()
           try:
             urllib2.urlopen(menu.options.file_upload)
           except urllib2.HTTPError, err_msg:
             print settings.print_critical_msg(str(err_msg.code))
             raise SystemExit()
-
           except urllib2.URLError, err_msg:
             print settings.print_critical_msg(str(err_msg.args[0]).split("] ")[1] + ".")
             raise SystemExit()
-
-        # Used a valid pair of valid credentials
-        if menu.options.auth_cred:
-          success_msg = Style.BRIGHT + "Identified a valid pair of credentials '" 
-          success_msg += menu.options.auth_cred + Style.RESET_ALL 
-          success_msg += Style.BRIGHT + "'." + Style.RESET_ALL
-          print settings.print_success_msg(success_msg)
-
         try:
+          # Webpage encoding detection.
+          requests.encoding_detection(response)
           if response.info()['server'] :
             server_banner = response.info()['server']
-            found_os_server = False
-            if menu.options.os and checks.user_defined_os():
-              user_defined_os = settings.TARGET_OS
-
-            if settings.VERBOSITY_LEVEL >= 1:
-              info_msg = "Identifying the target operating system... " 
-              sys.stdout.write(settings.print_info_msg(info_msg))
-              sys.stdout.flush()
-
-            # Procedure for target OS identification.
-            for i in range(0,len(settings.SERVER_OS_BANNERS)):
-              if settings.SERVER_OS_BANNERS[i].lower() in server_banner.lower():
-                found_os_server = True
-                settings.TARGET_OS = settings.SERVER_OS_BANNERS[i].lower()
-                if settings.TARGET_OS == "win" or settings.TARGET_OS == "microsoft" :
-                  identified_os = "Windows"
-                  if menu.options.os and user_defined_os != "win":
-                    if not checks.identified_os():
-                      settings.TARGET_OS = user_defined_os
-
-                  settings.TARGET_OS = identified_os[:3].lower()
-                  if menu.options.shellshock:
-                    err_msg = "The shellshock module is not available for " 
-                    err_msg += identified_os + " targets."
-                    print settings.print_critical_msg(err_msg)
-                    raise SystemExit()
-                else:
-                  identified_os = "Unix-like (" + settings.TARGET_OS + ")"
-                  if menu.options.os and user_defined_os == "win":
-                    if not checks.identified_os():
-                      settings.TARGET_OS = user_defined_os
-
-            if settings.VERBOSITY_LEVEL >= 1 :
-              if found_os_server:
-                print "[ " + Fore.GREEN + "SUCCEED" + Style.RESET_ALL + " ]"
-                success_msg = "The target operating system appears to be " 
-                success_msg += identified_os.title() + Style.RESET_ALL + "."
-                print settings.print_success_msg(success_msg)
-              else:
-                print "[ " + Fore.RED + "FAILED" + Style.RESET_ALL + " ]"
-                warn_msg = "Heuristics have failed to identify server's operating system."
-                print settings.print_warning_msg(warn_msg)
-
+            # Procedure for target server's operating system identification.
+            requests.check_target_os(server_banner)
             # Procedure for target server identification.
-            found_server_banner = False
-            if settings.VERBOSITY_LEVEL >= 1:
-              info_msg = "Identifying the target server... " 
-              sys.stdout.write(settings.print_info_msg(info_msg))
-              sys.stdout.flush()
-
-            for i in range(0,len(settings.SERVER_BANNERS)):
-              if settings.SERVER_BANNERS[i].lower() in server_banner.lower():
-                if settings.VERBOSITY_LEVEL >= 1:
-                  print "[ " + Fore.GREEN + "SUCCEED" + Style.RESET_ALL + " ]"
-                if settings.VERBOSITY_LEVEL >= 1:
-                  success_msg = "The target server was identified as " 
-                  success_msg += server_banner + Style.RESET_ALL + "."
-                  print settings.print_success_msg(success_msg)
-                settings.SERVER_BANNER = server_banner
-                found_server_banner = True
-
-                # Set up default root paths
-                if settings.SERVER_BANNERS[i].lower() == "apache":
-                  if settings.TARGET_OS == "win":
-                    settings.WEB_ROOT = "\\htdocs"
-                  else:
-                    settings.WEB_ROOT = "/var/www"
-                if settings.SERVER_BANNERS[i].lower() == "nginx": 
-                  settings.WEB_ROOT = "/usr/share/nginx"
-                if settings.SERVER_BANNERS[i].lower() == "microsoft-iis":
-                  settings.WEB_ROOT = "\\inetpub\\wwwroot"
-                break
-
-            if not found_server_banner:
-              if settings.VERBOSITY_LEVEL >= 1:
-                print "[ " + Fore.RED + "FAILED" + Style.RESET_ALL + " ]"
-              warn_msg = "Heuristics have failed to identify target server."
-              print settings.print_warning_msg(warn_msg)
-
+            requests.server_identification(server_banner)
             # Procedure for target application identification
-            found_application_extension = False
-            if settings.VERBOSITY_LEVEL >= 1:
-              info_msg = "Identifying the target application ... " 
-              sys.stdout.write(settings.print_info_msg(info_msg))
-              sys.stdout.flush()
-            root, application_extension = splitext(urlparse(url).path)
-            settings.TARGET_APPLICATION = application_extension[1:].upper()
-            
-            if settings.TARGET_APPLICATION:
-              found_application_extension = True
-              if settings.VERBOSITY_LEVEL >= 1:
-                print "[ " + Fore.GREEN + "SUCCEED" + Style.RESET_ALL + " ]"           
-                success_msg = "The target application was identified as " 
-                success_msg += settings.TARGET_APPLICATION + Style.RESET_ALL + "."
-                print settings.print_success_msg(success_msg)
-
-              # Check for unsupported target applications
-              for i in range(0,len(settings.UNSUPPORTED_TARGET_APPLICATION)):
-                if settings.TARGET_APPLICATION.lower() in settings.UNSUPPORTED_TARGET_APPLICATION[i].lower():
-                  err_msg = settings.TARGET_APPLICATION + " exploitation is not yet supported."  
-                  print settings.print_critical_msg(err_msg)
-                  raise SystemExit()
-
-            if not found_application_extension:
-              if settings.VERBOSITY_LEVEL >= 1:
-                print "[ " + Fore.RED + "FAILED" + Style.RESET_ALL + " ]"
-              warn_msg = "Heuristics have failed to identify target application."
-              print settings.print_warning_msg(warn_msg)
-
+            requests.application_identification(server_banner, url)
             # Store the Server's root dir
             settings.DEFAULT_WEB_ROOT = settings.WEB_ROOT
-
             if menu.options.is_admin or menu.options.is_root and not menu.options.current_user:
               menu.options.current_user = True
-
             # Define Python working directory.
-            if settings.TARGET_OS == "win" and menu.options.alter_shell:
-              while True:
-                if not menu.options.batch:
-                  question_msg = "Do you want to use '" + settings.WIN_PYTHON_DIR 
-                  question_msg += "' as Python working directory on the target host? [Y/n] > "
-                  sys.stdout.write(settings.print_question_msg(question_msg))
-                  python_dir = sys.stdin.readline().replace("\n","").lower()
-                else:
-                  python_dir = ""  
-                if len(python_dir) == 0:
-                   python_dir = "y" 
-                if python_dir in settings.CHOICE_YES:
-                  break
-                elif python_dir in settings.CHOICE_NO:
-                  question_msg = "Please provide a custom working directory for Python (e.g. '" 
-                  question_msg += settings.WIN_PYTHON_DIR + "') > "
-                  sys.stdout.write(settings.print_question_msg(question_msg))
-                  settings.WIN_PYTHON_DIR = sys.stdin.readline().replace("\n","").lower()
-                  break
-                else:
-                  err_msg = "'" + python_dir + "' is not a valid answer."  
-                  print settings.print_error_msg(err_msg)
-                  pass
-              settings.USER_DEFINED_PYTHON_DIR = True
-
+            checks.define_py_working_dir()
             # Check for wrong flags.
-            if settings.TARGET_OS == "win":
-              if menu.options.is_root :
-                warn_msg = "Swithing '--is-root' to '--is-admin' because the "
-                warn_msg += "target has been identified as windows."
-                print settings.print_warning_msg(warn_msg)
-              if menu.options.passwords:
-                warn_msg = "The '--passwords' option, is not yet available for Windows targets."
-                print settings.print_warning_msg(warn_msg)  
-              if menu.options.file_upload :
-                warn_msg = "The '--file-upload' option, is not yet available for windows targets. "
-                warn_msg += "Instead, use the '--file-write' option."
-                print settings.print_warning_msg(warn_msg)  
-                raise SystemExit()
-            else: 
-              if menu.options.is_admin : 
-                warn_msg = "Swithing the '--is-admin' to '--is-root' because "
-                warn_msg += "the target has been identified as unix-like. "
-                print settings.print_warning_msg(warn_msg)  
-
-            if found_os_server == False and not menu.options.os:
-              # If "--shellshock" option is provided then,
-              # by default is a Linux/Unix operating system.
-              if menu.options.shellshock:
-                pass 
-              else:
-                if menu.options.batch:
-                  if not settings.CHECK_BOTH_OS:
-                    settings.CHECK_BOTH_OS = True
-                    check_type = "unix-based"
-                  elif settings.CHECK_BOTH_OS:
-                    settings.TARGET_OS = "win"
-                    settings.CHECK_BOTH_OS = False
-                    settings.PERFORM_BASIC_SCANS = True
-                    check_type = "windows-based"
-                  info_msg = "Setting the " + check_type + " payloads."
-                  print settings.print_info_msg(info_msg)
-                else:
-                  while True:
-                    question_msg = "Do you recognise the server's operating system? "
-                    question_msg += "[(W)indows/(U)nix/(q)uit] > "
-                    sys.stdout.write(settings.print_question_msg(question_msg))
-                    got_os = sys.stdin.readline().replace("\n","").lower()
-                    if got_os.lower() in settings.CHOICE_OS :
-                      if got_os.lower() == "w":
-                        settings.TARGET_OS = "win"
-                        break
-                      elif got_os.lower() == "u":
-                        break
-                      elif got_os.lower() == "q":
-                        raise SystemExit()
-                    else:
-                      err_msg = "'" + got_os + "' is not a valid answer."  
-                      print settings.print_error_msg(err_msg)
-                      pass
-
-            if not menu.options.os:
-              if found_server_banner == False:
-                warn_msg = "The server which was identified as " 
-                warn_msg += server_banner + " seems unknown."
-                print settings.print_warning_msg(warn_msg)
+            checks.check_wrong_flags() 
           else:
             found_os_server = checks.user_defined_os()
         except KeyError:
           pass
-
-        # Webpage encoding detection.
-        requests.encoding_detection(response)
-
+        # Load tamper scripts
+        if menu.options.tamper:
+          checks.tamper_scripts()
+          
       except urllib2.HTTPError, err_msg:
         # Check the codes of responses
         if str(err_msg.getcode()) == settings.INTERNAL_SERVER_ERROR:
           print "[ " + Fore.RED + "FAILED" + Style.RESET_ALL + " ]"
           content = err_msg.read()
           raise SystemExit()
-
-        # Check for HTTP Error 401 (Unauthorized).
-        elif str(err_msg.getcode()) == settings.UNAUTHORIZED_ERROR:
-          try:
-            # Get the auth header value
-            auth_line = e.headers.get('www-authenticate', '')
-            # Checking for authentication type name.
-            auth_type = auth_line.split()[0]
-            settings.SUPPORTED_HTTP_AUTH_TYPES.index(auth_type.lower())
-            # Checking for the realm attribute.
-            try: 
-              auth_obj = re.match('''(\w*)\s+realm=(.*)''', auth_line).groups()
-              realm = auth_obj[1].split(',')[0].replace("\"", "")
-            except:
-              realm = False
-
-          except ValueError:
-            print "[ " + Fore.RED + "FAILED" + Style.RESET_ALL + " ]"
-            err_msg = "The identified HTTP authentication type (" + auth_type + ") "
-            err_msg += "is not yet supported."
-            print settings.print_critical_msg(err_msg) + "\n"
-            raise SystemExit()
-
-          except IndexError:
-            print "[ " + Fore.RED + "FAILED" + Style.RESET_ALL + " ]"
-            err_msg = "The provided pair of " + menu.options.auth_type 
-            err_msg += " HTTP authentication credentials '" + menu.options.auth_cred + "'"
-            err_msg += " seems to be invalid."
-            print settings.print_critical_msg(err_msg)
-            raise SystemExit() 
-            
-          if settings.VERBOSITY_LEVEL < 2:
-            print "[ " + Fore.GREEN + "SUCCEED" + Style.RESET_ALL + " ]"
-          if menu.options.auth_type and menu.options.auth_type != auth_type.lower():
-            if checks.identified_http_auth_type(auth_type):
-              menu.options.auth_type = auth_type.lower()
-          else:
-            menu.options.auth_type = auth_type.lower()
-
-          # Check for stored auth credentials.
-          if not menu.options.auth_cred:
-            try:
-              stored_auth_creds = session_handler.export_valid_credentials(url, auth_type.lower())
-            except:
-              stored_auth_creds = False
-            if stored_auth_creds:
-              menu.options.auth_cred = stored_auth_creds
-              success_msg = "Identified a valid pair of credentials '"  
-              success_msg += menu.options.auth_cred + Style.RESET_ALL + Style.BRIGHT  + "'."
-              print settings.print_success_msg(success_msg)
-            else:  
-              # Basic authentication 
-              if menu.options.auth_type == "basic":
-                if not menu.options.ignore_401:
-                  warn_msg = "(" + menu.options.auth_type.capitalize() + ") " 
-                  warn_msg += "HTTP authentication credentials are required."
-                  print settings.print_warning_msg(warn_msg)
-                  while True:
-                    if not menu.options.batch:
-                      question_msg = "Do you want to perform a dictionary-based attack? [Y/n] > "
-                      sys.stdout.write(settings.print_question_msg(question_msg))
-                      do_update = sys.stdin.readline().replace("\n","").lower()
-                    else:
-                      do_update = ""  
-                    if len(do_update) == 0:
-                       do_update = "y" 
-                    if do_update in settings.CHOICE_YES:
-                      auth_creds = authentication.http_auth_cracker(url, realm)
-                      if auth_creds != False:
-                        menu.options.auth_cred = auth_creds
-                        settings.REQUIRED_AUTHENTICATION = True
-                        break
-                      else:
-                        raise SystemExit()
-                    elif do_update in settings.CHOICE_NO:
-                      checks.http_auth_err_msg()
-                    elif do_update in settings.CHOICE_QUIT:
-                      raise SystemExit()
-                    else:
-                      err_msg = "'" + do_update + "' is not a valid answer."  
-                      print settings.print_error_msg(err_msg)
-                      pass
-
-              # Digest authentication         
-              elif menu.options.auth_type == "digest":
-                if not menu.options.ignore_401:
-                  warn_msg = "(" + menu.options.auth_type.capitalize() + ") " 
-                  warn_msg += "HTTP authentication credentials are required."
-                  print settings.print_warning_msg(warn_msg)      
-                  # Check if heuristics have failed to identify the realm attribute.
-                  if not realm:
-                    warn_msg = "Heuristics have failed to identify the realm attribute." 
-                    print settings.print_warning_msg(warn_msg)
-                  while True:
-                    if not menu.options.batch:
-                      question_msg = "Do you want to perform a dictionary-based attack? [Y/n] > "
-                      sys.stdout.write(settings.print_question_msg(question_msg))
-                      do_update = sys.stdin.readline().replace("\n","").lower()
-                    else:
-                      do_update = ""
-                    if len(do_update) == 0:
-                       do_update = "y" 
-                    if do_update in settings.CHOICE_YES:
-                      auth_creds = authentication.http_auth_cracker(url, realm)
-                      if auth_creds != False:
-                        menu.options.auth_cred = auth_creds
-                        settings.REQUIRED_AUTHENTICATION = True
-                        break
-                      else:
-                        raise SystemExit()
-                    elif do_update in settings.CHOICE_NO:
-                      checks.http_auth_err_msg()
-                    elif do_update in settings.CHOICE_QUIT:
-                      raise SystemExit()
-                    else:
-                      err_msg = "'" + do_update + "' is not a valid answer."  
-                      print settings.print_error_msg(err_msg)
-                      pass
-                  else:   
-                    checks.http_auth_err_msg()      
-          else:
-            pass
         
         # Invalid permission to access target URL page.
         elif str(err_msg.getcode()) == settings.FORBIDDEN_ERROR:
@@ -989,6 +583,17 @@ def main(filename, url):
     logs.print_logs_notification(filename, url)
 
 try:
+  # Check python version number.
+  version.python_version()
+
+  # Check if defined "--version" option.
+  if menu.options.version:
+    version.show_version()
+    raise SystemExit()
+
+  # Print the legal disclaimer msg.
+  print settings.print_legal_disclaimer_msg(settings.LEGAL_DISCLAIMER_MSG)
+
   if not menu.options.batch:
     settings.OS_CHECKS_NUM = 1
   for os_checks_num in range(0, int(settings.OS_CHECKS_NUM)):
@@ -997,14 +602,6 @@ try:
     if menu.options.list_tampers:
       checks.list_tamper_scripts()
       raise SystemExit()
-
-    # Check if defined "--version" option.
-    if menu.options.version:
-      version.show_version()
-      raise SystemExit()
-
-    # Check python version number.
-    version.python_version()
 
     if readline_error :
       checks.no_readline_module()
@@ -1033,6 +630,30 @@ try:
       err_msg += "Use -h for help."
       print settings.print_critical_msg(err_msg)
       raise SystemExit()
+
+    # Check if defined "--proxy" option.
+    if menu.options.proxy:
+      for match in re.finditer(settings.PROXY_REGEX, menu.options.proxy):
+        _, proxy_scheme, proxy_address, proxy_port = match.groups()
+        if proxy_scheme:
+          settings.PROXY_SCHEME = proxy_scheme
+          menu.options.proxy = proxy_address + ":" + proxy_port
+          break
+      else:
+        err_msg = "Proxy value must be in format '(http|https)://address:port'."
+        print settings.print_critical_msg(err_msg)
+        raise SystemExit()
+
+    if menu.options.ignore_session and menu.options.flush_session:
+      err_msg = "The '--ignore-session' parameter is unlikely to work combined with the '--flush-session' parameter."
+      print settings.print_critical_msg(err_msg)
+      raise SystemExit()
+
+    # Check if defined "--auth-cred" and/or '--auth-type'.
+    if (menu.options.auth_type and not menu.options.auth_cred) or (menu.options.auth_cred and not menu.options.auth_type):
+        err_msg = "You must specify both '--auth-cred' and '--auth-type' parameters."      
+        print settings.print_critical_msg(err_msg)
+        raise SystemExit()
 
     # Check if defined "--purge" option.
     if menu.options.purge:

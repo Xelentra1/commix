@@ -2,8 +2,8 @@
 # encoding: UTF-8
 
 """
-This file is part of Commix Project (http://commixproject.com).
-Copyright (c) 2014-2018 Anastasios Stasinopoulos (@ancst).
+This file is part of Commix Project (https://commixproject.com).
+Copyright (c) 2014-2019 Anastasios Stasinopoulos (@ancst).
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -39,7 +39,7 @@ def do_check(url):
        request = urllib2.Request(url)
     # Check if defined extra headers.
     headers.do_check(request)
-    request.set_proxy(menu.options.proxy,settings.PROXY_PROTOCOL)
+    request.set_proxy(menu.options.proxy,settings.PROXY_SCHEME)
     try:
       check = urllib2.urlopen(request)
     except urllib2.HTTPError, error:
@@ -61,7 +61,7 @@ Use the defined HTTP Proxy
 """
 def use_proxy(request):
   headers.do_check(request)
-  request.set_proxy(menu.options.proxy,settings.PROXY_PROTOCOL)
+  request.set_proxy(menu.options.proxy,settings.PROXY_SCHEME)
   try:
     response = urllib2.urlopen(request)
     return response
@@ -73,10 +73,12 @@ def use_proxy(request):
     print settings.print_critical_msg(err_msg)
     raise SystemExit() 
 
-  except Exception, e:
-    err_msg = "Unable to connect to the target URL or proxy ("
-    err_msg += menu.options.proxy
-    err_msg += ")."
-    print settings.print_critical_msg(err_msg)
-    raise SystemExit() 
+  except Exception as err_msg:
+    try:
+      error_msg = str(err_msg.args[0]).split("] ")[1] + "."
+    except IndexError:
+      error_msg = str(err_msg).replace(": "," (") + ")."
+    print settings.print_critical_msg(error_msg)
+    raise SystemExit()
 
+# eof 
